@@ -1,0 +1,714 @@
+openapi: 3.0.3
+info:
+  title: Retailer AI Agent System API
+  description: |
+    E-commerce platform with AI-powered search and recommendations.
+
+    ## Features
+    - Natural language product search with AI agent
+    - Intelligent recommendations based on purchase history
+    - Complete cart and checkout flow
+    - Admin inventory management
+
+    ## AI Agent Capabilities
+    The system demonstrates AI reasoning through:
+    - Intent parsing and confidence scoring
+    - Attribute extraction from natural language
+    - History-based recommendation generation
+    - Transparent reasoning logs
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@retailer.com
+
+servers:
+  - url: http://localhost:8100
+    description: Local development server
+  - url: http://localhost:8100/api
+    description: API prefix (if using proxy)
+
+tags:
+  - name: Cart
+    description: Shopping cart management
+  - name: Checkout
+    description: Payment and order creation
+  - name: Search
+    description: Product search (keyword and natural language)
+  - name: Recommendations
+    description: AI-powered product recommendations
+  - name: Products
+    description: Product catalog
+  - name: Admin
+    description: Admin operations (inventory management)
+
+paths:
+  # CART ENDPOINTS
+  /cart/add:
+    post:
+      tags:
+        - Cart
+      summary: Add product to cart
+      description: Add a product to the shopping cart with specified quantity
+      operationId: addToCart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToCartRequest'
+            examples:
+              addNewItem:
+                summary: Add new product to cart
+                value:
+                  cart_id: "demo-cart-001"
+                  product_id: 1
+                  quantity: 2
+                  customer_id: 1
+      responses:
+        '200':
+          description: Product added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '400':
+          description: Bad request (invalid product or quantity)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cart/remove:
+    post:
+      tags:
+        - Cart
+      summary: Remove product from cart
+      description: Remove specified quantity of a product from cart
+      operationId: removeFromCart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveFromCartRequest'
+            examples:
+              removePartial:
+                summary: Remove 1 unit
+                value:
+                  cart_id: "demo-cart-001"
+                  product_id: 1
+                  quantity: 1
+      responses:
+        '200':
+          description: Product removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '404':
+          description: Product not found in cart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cart/{cart_id}:
+    get:
+      tags:
+        - Cart
+      summary: Get cart details
+      description: Retrieve current cart contents and total
+      operationId: getCart
+      parameters:
+        - name: cart_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "demo-cart-001"
+      responses:
+        '200':
+          description: Cart details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '404':
+          description: Cart not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # CHECKOUT ENDPOINTS
+  /checkout/prepare:
+    post:
+      tags:
+        - Checkout
+      summary: Prepare checkout session
+      description: Create checkout session and reserve stock
+      operationId: prepareCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutPrepareRequest'
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutPrepareResponse'
+        '400':
+          description: Cart empty or insufficient stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /checkout/finalize:
+    post:
+      tags:
+        - Checkout
+      summary: Finalize checkout
+      description: Process payment and create order
+      operationId: finalizeCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutFinalizeRequest'
+      responses:
+        '200':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '422':
+          description: Payment failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # SEARCH ENDPOINTS
+  /search:
+    get:
+      tags:
+        - Search
+      summary: Keyword search
+      description: Search products by name or description
+      operationId: keywordSearch
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "running shoes"
+        - name: skip
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+
+  /search/nl:
+    get:
+      tags:
+        - Search
+      summary: Natural language search (AI Agent)
+      description: |
+        Search using natural language with AI agent.
+        Agent parses intent, extracts attributes, scores confidence.
+
+        Example queries:
+        - "find breathable red running shoes"
+        - "waterproof jacket for hiking"
+        - "comfortable sneakers under $100"
+      operationId: naturalLanguageSearch
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "find breathable red running shoes"
+      responses:
+        '200':
+          description: AI search results with reasoning
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AISearchResponse'
+
+  # RECOMMENDATION ENDPOINTS
+  /recommendations:
+    get:
+      tags:
+        - Recommendations
+      summary: Get personalized recommendations
+      description: |
+        AI-powered recommendations based on customer purchase history.
+        Uses agent reasoning to analyze preferences and suggest products.
+      operationId: getRecommendations
+      parameters:
+        - name: customer_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          example: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+        - name: use_agent
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Personalized recommendations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationResponse'
+
+  # PRODUCT ENDPOINTS
+  /products:
+    get:
+      tags:
+        - Products
+      summary: List all products
+      description: Get paginated list of active products
+      operationId: getProducts
+      parameters:
+        - name: skip
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /products/{product_id}:
+    get:
+      tags:
+        - Products
+      summary: Get product by ID
+      operationId: getProduct
+      parameters:
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ADMIN ENDPOINTS
+  /admin/stock:
+    post:
+      tags:
+        - Admin
+      summary: Update inventory stock
+      description: Manually adjust stock levels for a product
+      operationId: updateStock
+      parameters:
+        - name: sku
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "RUN-001"
+        - name: qty_delta
+          in: query
+          required: true
+          schema:
+            type: integer
+          example: 50
+          description: Positive to add, negative to remove
+      responses:
+        '200':
+          description: Stock updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        '404':
+          description: SKU not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/inventory:
+    get:
+      tags:
+        - Admin
+      summary: Get all inventory
+      description: Retrieve inventory status for all products
+      operationId: getInventory
+      responses:
+        '200':
+          description: Inventory list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inventory:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryItem'
+
+  # HEALTH CHECK
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  service:
+                    type: string
+                    example: "Retailer AI Agent System"
+
+components:
+  schemas:
+    # REQUEST SCHEMAS
+    AddToCartRequest:
+      type: object
+      required:
+        - cart_id
+        - product_id
+        - quantity
+      properties:
+        cart_id:
+          type: string
+          example: "demo-cart-001"
+        product_id:
+          type: integer
+          example: 1
+        quantity:
+          type: integer
+          minimum: 1
+          example: 2
+        customer_id:
+          type: integer
+          nullable: true
+          example: 1
+
+    RemoveFromCartRequest:
+      type: object
+      required:
+        - cart_id
+        - product_id
+        - quantity
+      properties:
+        cart_id:
+          type: string
+          example: "demo-cart-001"
+        product_id:
+          type: integer
+          example: 1
+        quantity:
+          type: integer
+          minimum: 1
+          example: 1
+
+    CheckoutPrepareRequest:
+      type: object
+      required:
+        - cart_id
+      properties:
+        cart_id:
+          type: string
+          example: "demo-cart-001"
+
+    CheckoutFinalizeRequest:
+      type: object
+      required:
+        - payment_intent_id
+        - cart_id
+      properties:
+        payment_intent_id:
+          type: string
+          example: "pi_abc123"
+        cart_id:
+          type: string
+          example: "demo-cart-001"
+
+    # RESPONSE SCHEMAS
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        sku:
+          type: string
+          example: "RUN-001"
+        name:
+          type: string
+          example: "CloudRunner Pro"
+        description:
+          type: string
+          example: "Breathable mesh running shoes"
+        price:
+          type: number
+          format: float
+          example: 129.99
+        category:
+          type: string
+          example: "running shoes"
+        brand:
+          type: string
+          example: "SpeedFit"
+        color:
+          type: string
+          example: "red"
+        features:
+          type: string
+          example: "breathable,lightweight"
+        is_active:
+          type: boolean
+          example: true
+
+    CartItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        product_id:
+          type: integer
+        product:
+          $ref: '#/components/schemas/Product'
+        quantity:
+          type: integer
+        price:
+          type: number
+        subtotal:
+          type: number
+
+    CartResponse:
+      type: object
+      properties:
+        cart_id:
+          type: string
+          example: "demo-cart-001"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        total:
+          type: number
+          example: 259.98
+        item_count:
+          type: integer
+          example: 2
+
+    CheckoutPrepareResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+          example: "dummy_session_demo-cart-001_abc123"
+        payment_intent_id:
+          type: string
+          example: "pi_abc123def456"
+        redirect_url:
+          type: string
+          example: "/dummy/checkout/demo-cart-001"
+
+    OrderResponse:
+      type: object
+      properties:
+        order_id:
+          type: integer
+          example: 1
+        order_number:
+          type: string
+          example: "ORD-ABC123DEF456"
+        status:
+          type: string
+          example: "PAID"
+        total:
+          type: number
+          example: 259.98
+
+    SearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+          example: "running shoes"
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+
+    AISearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+          example: "find breathable red running shoes"
+        intent:
+          type: object
+          properties:
+            intent:
+              type: string
+              example: "product_search"
+            attributes:
+              type: object
+              example: {"color": "red", "category": "running shoes", "features": ["breathable"]}
+            confidence:
+              type: number
+              format: float
+              example: 0.85
+            requires_clarification:
+              type: boolean
+              example: false
+        products:
+          type: array
+          items:
+            type: object
+            allOf:
+              - $ref: '#/components/schemas/Product'
+              - type: object
+                properties:
+                  relevance_score:
+                    type: number
+                    format: float
+                    example: 0.92
+        confidence:
+          type: number
+          example: 0.85
+        reasoning_logs:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              step:
+                type: string
+                example: "INTENT_PARSING"
+              message:
+                type: string
+                example: "Analyzing query: 'find breathable red running shoes'"
+
+    RecommendationResponse:
+      type: object
+      properties:
+        customer_id:
+          type: integer
+          example: 1
+        recommendations:
+          type: array
+          items:
+            type: object
+            allOf:
+              - $ref: '#/components/schemas/Product'
+              - type: object
+                properties:
+                  recommendation_score:
+                    type: number
+                    format: float
+                    example: 0.78
+                  in_stock:
+                    type: boolean
+                    example: true
+                  available_quantity:
+                    type: integer
+                    example: 45
+
+    InventoryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        sku:
+          type: string
+          example: "RUN-001"
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+          example: 100
+        reserved_quantity:
+          type: integer
+          example: 5
+        available_quantity:
+          type: integer
+          example: 95
+        low_stock_threshold:
+          type: integer
+          example: 10
+        is_low_stock:
+          type: boolean
+          example: false
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+          example: "Product not found"

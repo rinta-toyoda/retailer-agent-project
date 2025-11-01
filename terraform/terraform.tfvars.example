@@ -1,0 +1,43 @@
+# Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+
+# Project Configuration
+project_name = "retailer-agent"
+environment  = "prod"
+aws_region   = "us-east-1"
+
+# Database Configuration (REQUIRED - use strong passwords)
+db_username = "retailer"
+db_password = "CHANGE_THIS_TO_STRONG_PASSWORD" # Must be at least 8 characters
+
+# Security (REQUIRED)
+jwt_secret_key = "CHANGE_THIS_TO_RANDOM_STRING_AT_LEAST_32_CHARS"
+openai_api_key = "sk-proj-YOUR_OPENAI_API_KEY_HERE"
+
+# CORS Origins (update with your Vercel URL after frontend deployment)
+cors_origins = "https://your-frontend.vercel.app,http://localhost:3000"
+
+# Instance Sizing (defaults are cost-optimized)
+db_instance_class       = "db.t3.micro" # Free tier eligible
+db_allocated_storage    = 20            # Free tier: 20GB
+fargate_cpu             = 256           # 0.25 vCPU
+fargate_memory          = 512           # 512 MB
+fargate_desired_count   = 1             # Number of tasks
+enable_fargate_spot     = true          # Use Spot for cost savings (~70% cheaper)
+
+# Production Settings
+enable_deletion_protection = false # Set to true for production
+backup_retention_period    = 7     # Days to keep backups
+
+# Network Configuration (optional - defaults are fine)
+# vpc_cidr             = "10.0.0.0/16"
+# public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+# private_subnet_cidrs = ["10.0.11.0/24", "10.0.12.0/24"]
+
+# Tags
+tags = {
+  Project     = "RetailerAIAgent"
+  ManagedBy   = "Terraform"
+  Environment = "Production"
+  Owner       = "Your Name"
+}

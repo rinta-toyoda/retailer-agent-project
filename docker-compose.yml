@@ -1,0 +1,94 @@
+services:
+  # LocalStack for S3
+  localstack:
+    image: localstack/localstack:latest
+    container_name: retailer_localstack
+    ports:
+      - "4566:4566"  # LocalStack gateway
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/var/lib/localstack/data
+      - LS_TMP_DIR=/var/lib/localstack/tmp
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: retailer_db
+    environment:
+      POSTGRES_USER: retailer
+      POSTGRES_PASSWORD: retailer123
+      POSTGRES_DB: retailer_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U retailer -d retailer_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: retailer-backend:latest
+    container_name: retailer_backend
+    ports:
+      - "8100:8100"
+    environment:
+      DATABASE_URL: postgresql://retailer:retailer123@db:5432/retailer_db
+      API_HOST: 0.0.0.0
+      API_PORT: 8100
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+      DEBUG: "true"
+      # S3 / LocalStack configuration
+      S3_ENDPOINT_URL: http://localstack:4566
+      S3_PUBLIC_URL: http://localhost:4566
+      S3_BUCKET_NAME: retailer-product-images
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      # LLM / OpenAI configuration
+      LLM_PROVIDER: "${LLM_PROVIDER}"
+      LLM_MODEL: "${LLM_MODEL}"
+      LLM_TEMPERATURE: "${LLM_TEMPERATURE}"
+      LLM_MAX_TOOL_CALLS: "${LLM_MAX_TOOL_CALLS}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+    volumes:
+      - ./backend:/app
+      - ./assets:/assets
+    depends_on:
+      db:
+        condition: service_healthy
+      localstack:
+        condition: service_started
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: retailer-frontend:latest
+    container_name: retailer_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8100
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  localstack_data:

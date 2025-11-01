@@ -1,0 +1,107 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+env/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+dist-ssr/
+*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Docker
+.docker/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+DEPLOYMENT.md
+Instructions.md
+NEXT_ACTIONS.md
+SETUP.md
+
+frontend/.next
+frontend/node_modules
+frontend/QUICKSTART.md
+
+# MCP and tool directories
+claudedocs/
+.serena/
+.playwright-mcp/
+.claude/
+
+# OS
+Thumbs.db
+*.DS_Store
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+*~
+
+# Next.js specific
+.next/
+out/
+
+# Python virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# TypeScript
+*.tsbuildinfo
+
+terraform/README.md
+Agile.md
