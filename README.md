@@ -54,16 +54,6 @@ task destroy
 task up
 ```
 
-## Team Contributions
-
-| SID | Percentage | Contributions |
-|-----|------------|---------------|
-| 123456789 | 20% | Frontend development: Product pages, cart UI, checkout flow. React components and Next.js routing. |
-| 234567890 | 20% | Backend API: Cart service, checkout flow, payment integration. FastAPI endpoints and business logic. |
-| 345678901 | 20% | AI Agent implementation: Natural language search, recommendation engine. OpenAI integration and reasoning. |
-| 456789012 | 20% | Database design and repository layer: Models, migrations, data access patterns. PostgreSQL schema. |
-| 567890123 | 20% | Infrastructure and deployment: Docker setup, CI/CD, S3 integration. DevOps and system architecture. |
-
 ## Project Overview
 
 This system implements a **Retailer AI Agent** with:
