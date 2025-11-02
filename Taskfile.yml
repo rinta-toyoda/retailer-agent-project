@@ -16,6 +16,7 @@ tasks:
       - task: _install:backend
       - task: _install:frontend
       - task: _docker:up:safe
+      - task: reset
       - echo ""
       - echo "Installation complete!"
       - echo "Backend - http://localhost:8100"
