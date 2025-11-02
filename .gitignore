@@ -23,6 +23,8 @@ wheels/
 venv/
 ENV/
 env/
+!frontend/src/lib/
+!frontend/src/lib/**
 
 # Node
 node_modules/
