@@ -8,6 +8,7 @@ A complete e-commerce platform demonstrating AI agent capabilities with natural 
 - **Docker Desktop** (version 24.0+) with Docker Compose
 - **Git** for cloning the repository
 - **OpenAI API Key** - Get from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- **Task Command** - Get from [taskfile.dev](https://taskfile.dev/docs/installation)
 
 ## How to Run
 
@@ -15,28 +16,20 @@ A complete e-commerce platform demonstrating AI agent capabilities with natural 
 
 ### Quick Start with Task Commands
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd Agent
-   ```
-
-2. **Add your OpenAI API key**
-   ```bash
-   # Edit .env file and add your OpenAI API key
-   # OPENAI_API_KEY=sk-proj-YOUR_KEY_HERE
-   ```
-
-3. **Install and start everything**
+1. **Install and start everything**
    ```bash
    # This command will:
    # - Build all Docker images
    # - Start all services (database, backend, frontend, localstack)
    # - Seed the database with sample products
    task install
-   ```
 
-4. **Access the application**
+2. **Add your OpenAI API key**
+   ```bash
+   # Edit .env file and add your OpenAI API key
+   # OPENAI_API_KEY=sk-proj-YOUR_KEY_HERE
+   ```
+3. **Access the application**
    - **Frontend**: http://localhost:3000
    - **Backend API**: http://localhost:8100
    - **API Documentation**: http://localhost:8100/docs
@@ -64,15 +57,17 @@ This system implements a **Retailer AI Agent** with:
 
 ## Technology Stack
 
-| Component | Technology |
-|-----------|-----------|
-| **Frontend** | Next.js 14 + TypeScript |
-| **Backend** | FastAPI + Python 3.11 |
-| **Database** | PostgreSQL 15 |
-| **ORM** | SQLAlchemy |
-| **Storage** | LocalStack S3 (AWS S3 compatible) |
-| **AI/LLM** | OpenAI GPT-4 |
-| **Containerization** | Docker Compose |
+| Component            | Technology                         |
+|----------------------|------------------------------------|
+| **Frontend**         | Next.js 14 + TypeScript + Tailwind |
+| **Backend**          | FastAPI + Python 3.11              |
+| **Database**         | PostgreSQL 15                      |
+| **ORM**              | SQLAlchemy                         |
+| **Storage**          | LocalStack S3 (AWS S3 compatible)  |
+| **AI/LLM**           | OpenAI GPT-4                       |
+| **Containerization** | Docker Compose                     |
+| **Deployment**       | ECS                                |
+
 
 ## Architecture
 
@@ -122,12 +117,13 @@ This system implements a **Retailer AI Agent** with:
 - Fallback to popular products for new customers
 
 ### 3. Complete Checkout Flow
-- Add/remove items from cart
 - Stock reservation during checkout preparation
 - Payment simulation with dummy Stripe integration
 - Order creation and history tracking
 
-### 4. Admin Inventory Management
+### 4. Adding/Removing items from cart
+
+### 5. Admin Inventory Management
 - View all products with images and descriptions
 - Set absolute stock quantities
 - Low stock monitoring with visual alerts
@@ -191,7 +187,7 @@ Agent/
 
 ## Marking Criteria Alignment
 
-### 4.1 Implementation of Stage 1 Requirements (8 Marks)
+### 4.1 Implementation of Stage 1 Requirements
 
 **Fully Implemented Flows:**
 - **Cart Management** - Add/Remove products, total calculation
@@ -203,7 +199,7 @@ Agent/
 **Database Models:**
 - Product, Cart, CartItem, Order, OrderItem, InventoryItem, StockReservation, User
 
-### 4.2 AI Agent Capabilities (5 Marks)
+### 4.2 AI Agent Capabilities
 
 **AgentService** (`app/services/agent_service.py`):
 - Natural language understanding with intent parsing
@@ -216,23 +212,6 @@ Agent/
 - Database tool for dynamic product queries
 - Fallback mechanism for reliability
 
-### 4.3 Agile Development (6 Marks)
-
-See `AGILE_NOTES.md` for:
-- Sprint structure and planning
-- User stories with acceptance criteria
-- Team roles and retrospectives
-
-### 4.4 Advanced Technologies (6 Marks)
-
-- Next.js 14 with App Router and TypeScript
-- FastAPI with async operations
-- Docker Compose for containerization
-- OpenAI GPT-4 for natural language processing
-- LocalStack S3 for image storage
-- JWT authentication with protected routes
-- Clean architecture with repository pattern
-
 ## Testing
 
 The project includes a comprehensive testing infrastructure:
@@ -241,16 +220,6 @@ The project includes a comprehensive testing infrastructure:
 ```bash
 task test
 ```
-
-**Current test status:** ✅ All 5 backend unit tests passing
-
-**Test infrastructure includes:**
-- Backend: pytest with FastAPI TestClient for API testing
-- Frontend: Jest configured for TypeScript/Next.js components
-- Fixtures for database, users, products, and authentication
-- Coverage reporting capabilities
-
-See `TESTING.md` for detailed testing documentation.
 
 **Available test commands:**
 ```bash

@@ -3,7 +3,7 @@
 
 # Security Group for RDS
 resource "aws_security_group" "rds" {
-  name_description = "${local.name_prefix}-rds-sg"
+  name        = "${local.name_prefix}-rds-sg"
   description = "Security group for RDS PostgreSQL"
   vpc_id      = aws_vpc.main.id
 
@@ -45,7 +45,7 @@ resource "aws_db_instance" "postgres" {
 
   # Engine configuration
   engine               = "postgres"
-  engine_version       = "15.4"
+  engine_version       = "15"
   instance_class       = var.db_instance_class
   allocated_storage    = var.db_allocated_storage
   storage_type         = "gp3"

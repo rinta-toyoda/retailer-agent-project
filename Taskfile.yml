@@ -51,7 +51,7 @@ tasks:
       - task: test:backend
       - task: test:frontend
       - echo ""
-      - echo "✓ All tests passed!"
+      - echo "[OK] All tests passed!"
 
   test:backend:
     desc: Run backend tests with pytest
@@ -73,7 +73,7 @@ tasks:
       - task: test:backend:coverage
       - task: test:frontend:coverage
       - echo ""
-      - echo "✓ Coverage reports generated!"
+      - echo "[OK] Coverage reports generated!"
       - echo "Backend coverage report at backend/htmlcov/index.html"
       - echo "Frontend coverage report at frontend/coverage/lcov-report/index.html"
 

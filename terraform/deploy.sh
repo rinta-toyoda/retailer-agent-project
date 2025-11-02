@@ -74,8 +74,11 @@ apply_terraform() {
         echo "2. Seed production database:"
         echo -e "${BLUE}   ./deploy.sh seed-db${NC}"
         echo ""
-        echo "3. Deploy frontend to Vercel with API URL:"
-        terraform output -raw api_url
+        echo "3. Deploy frontend to S3 + CloudFront:"
+        echo -e "${BLUE}   ./deploy.sh deploy-frontend${NC}"
+        echo ""
+        echo "Frontend will be available at:"
+        terraform output -raw frontend_url 2>/dev/null || echo "(run after frontend deployment)"
         echo ""
     fi
 }
@@ -167,9 +170,9 @@ push_image() {
     aws ecr get-login-password --region "$REGION" | \
         docker login --username AWS --password-stdin "$REGISTRY"
 
-    echo "Building image..."
+    echo "Building image for linux/amd64 platform..."
     cd "$PROJECT_ROOT"
-    docker build -t "$ECR_REPO:latest" ./backend
+    docker build --platform linux/amd64 -t "$ECR_REPO:latest" ./backend
 
     echo "Pushing image..."
     docker push "$ECR_REPO:latest"
@@ -190,32 +193,119 @@ push_image() {
 
 # Seed production database
 seed_db() {
-    echo -e "${BLUE} Seeding production database...${NC}"
+    echo -e "${BLUE}Seeding production database...${NC}"
 
     if [ ! -f "terraform.tfstate" ]; then
-        echo -e "${RED} Infrastructure not deployed yet${NC}"
+        echo -e "${RED}[ERROR] Infrastructure not deployed yet${NC}"
         exit 1
     fi
 
-    DB_ENDPOINT=$(terraform output -raw database_endpoint)
-    S3_BUCKET=$(terraform output -raw s3_bucket)
+    CLUSTER=$(terraform output -raw ecs_cluster)
+    TASK_DEF=$(terraform output -raw ecs_service | sed 's/-backend-service/-backend/')
+    SUBNETS=$(terraform output -json private_subnet_ids | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
+    SECURITY_GROUP=$(aws ecs describe-services \
+        --cluster "$CLUSTER" \
+        --services "$(terraform output -raw ecs_service)" \
+        --region "$(terraform output -raw aws_region)" \
+        --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups[0]' \
+        --output text)
     REGION=$(terraform output -raw aws_region 2>/dev/null || echo "us-east-1")
 
-    echo "Using:"
-    echo "  Database: $DB_ENDPOINT"
-    echo "  S3 Bucket: $S3_BUCKET"
+    echo "Running one-time seed task on ECS..."
+    echo "  Cluster: $CLUSTER"
     echo "  Region: $REGION"
     echo ""
 
-    cd "$PROJECT_ROOT"
-    export DATABASE_URL="$DB_ENDPOINT"
-    export S3_BUCKET_NAME="$S3_BUCKET"
-    export AWS_REGION="$REGION"
-    unset S3_ENDPOINT_URL
+    # Run one-time ECS task to seed database
+    TASK_ARN=$(aws ecs run-task \
+        --cluster "$CLUSTER" \
+        --task-definition "$TASK_DEF" \
+        --launch-type FARGATE \
+        --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=DISABLED}" \
+        --overrides "{\"containerOverrides\":[{\"name\":\"backend\",\"command\":[\"python\",\"-m\",\"app.tools.seed_db\",\"--production\"]}]}" \
+        --region "$REGION" \
+        --query 'tasks[0].taskArn' \
+        --output text)
 
-    python -m backend.app.tools.seed_db --production
+    if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" == "None" ]; then
+        echo -e "${RED}[ERROR] Failed to start seed task${NC}"
+        exit 1
+    fi
 
-    echo -e "${GREEN} Database seeded${NC}"
+    echo "Task started: $TASK_ARN"
+    echo "Waiting for task to complete..."
+
+    # Wait for task to finish
+    aws ecs wait tasks-stopped \
+        --cluster "$CLUSTER" \
+        --tasks "$TASK_ARN" \
+        --region "$REGION"
+
+    # Check exit code
+    EXIT_CODE=$(aws ecs describe-tasks \
+        --cluster "$CLUSTER" \
+        --tasks "$TASK_ARN" \
+        --region "$REGION" \
+        --query 'tasks[0].containers[0].exitCode' \
+        --output text)
+
+    if [ "$EXIT_CODE" == "0" ]; then
+        echo -e "${GREEN}[OK] Database seeded successfully${NC}"
+    else
+        echo -e "${RED}[ERROR] Seed task failed with exit code: $EXIT_CODE${NC}"
+        echo "Check CloudWatch logs for details:"
+        echo "  aws logs tail /ecs/$(terraform output -raw ecs_cluster | sed 's/-cluster//') --follow"
+        exit 1
+    fi
+}
+
+# Deploy frontend to S3 + CloudFront
+deploy_frontend() {
+    echo -e "${BLUE} Deploying frontend...${NC}"
+
+    if [ ! -f "terraform.tfstate" ]; then
+        echo -e "${RED} Infrastructure not deployed yet${NC}"
+        echo "Run: ./deploy.sh apply"
+        exit 1
+    fi
+
+    FRONTEND_BUCKET=$(terraform output -raw frontend_s3_bucket)
+    CLOUDFRONT_ID=$(terraform output -raw cloudfront_distribution_id)
+    API_URL=$(terraform output -raw api_url)
+    REGION=$(terraform output -raw aws_region 2>/dev/null || echo "us-east-1")
+
+    echo "Using:"
+    echo "  S3 Bucket: $FRONTEND_BUCKET"
+    echo "  CloudFront ID: $CLOUDFRONT_ID"
+    echo "  API URL: $API_URL"
+    echo ""
+
+    cd "$PROJECT_ROOT/frontend"
+
+    # Set environment variable for build
+    export NEXT_PUBLIC_API_URL="$API_URL"
+
+    echo "Building Next.js app..."
+    npm run build
+
+    echo "Exporting static files..."
+    npm run export
+
+    echo "Uploading to S3..."
+    aws s3 sync out/ s3://"$FRONTEND_BUCKET"/ --delete --region "$REGION"
+
+    echo "Invalidating CloudFront cache..."
+    aws cloudfront create-invalidation \
+        --distribution-id "$CLOUDFRONT_ID" \
+        --paths "/*" \
+        --region "$REGION" \
+        --output text
+
+    echo -e "${GREEN} Frontend deployed successfully!${NC}"
+    echo ""
+    echo "Frontend URL:"
+    terraform -chdir=../terraform output -raw frontend_url
+    echo ""
 }
 
 # Main command router
@@ -241,20 +331,24 @@ case "${1:-help}" in
     seed-db)
         seed_db
         ;;
+    deploy-frontend)
+        deploy_frontend
+        ;;
     help|*)
         echo "Retailer AI Agent - Deployment Script"
         echo ""
         echo "Usage: ./deploy.sh [command]"
         echo ""
         echo "Commands:"
-        echo "  init        - Initialize Terraform"
-        echo "  plan        - Preview infrastructure changes"
-        echo "  apply       - Deploy infrastructure to AWS"
-        echo "  destroy     - Destroy all infrastructure"
-        echo "  status      - Show current infrastructure status"
-        echo "  push-image  - Build and push Docker image to ECR"
-        echo "  seed-db     - Seed production database"
-        echo "  help        - Show this help message"
+        echo "  init             - Initialize Terraform"
+        echo "  plan             - Preview infrastructure changes"
+        echo "  apply            - Deploy infrastructure to AWS"
+        echo "  destroy          - Destroy all infrastructure"
+        echo "  status           - Show current infrastructure status"
+        echo "  push-image       - Build and push Docker image to ECR"
+        echo "  seed-db          - Seed production database"
+        echo "  deploy-frontend  - Build and deploy frontend to S3 + CloudFront"
+        echo "  help             - Show this help message"
         echo ""
         echo "Quick Start:"
         echo "  1. cp terraform.tfvars.example terraform.tfvars"
@@ -263,5 +357,6 @@ case "${1:-help}" in
         echo "  4. ./deploy.sh apply"
         echo "  5. ./deploy.sh push-image"
         echo "  6. ./deploy.sh seed-db"
+        echo "  7. ./deploy.sh deploy-frontend"
         ;;
 esac

@@ -1,5 +1,11 @@
 # Terraform Outputs - All important values for deployment and access
 
+# Region
+output "aws_region" {
+  description = "AWS Region"
+  value       = var.aws_region
+}
+
 # Infrastructure
 output "vpc_id" {
   description = "VPC ID"
@@ -36,6 +42,21 @@ output "s3_bucket" {
 output "s3_bucket_public_url" {
   description = "S3 bucket public URL"
   value       = "https://${aws_s3_bucket.product_images.bucket}.s3.${var.aws_region}.amazonaws.com"
+}
+
+output "frontend_s3_bucket" {
+  description = "S3 bucket name for frontend static files"
+  value       = aws_s3_bucket.frontend.bucket
+}
+
+output "frontend_url" {
+  description = "Frontend URL (CloudFront distribution)"
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for cache invalidation"
+  value       = aws_cloudfront_distribution.frontend.id
 }
 
 # Container Registry
@@ -116,11 +137,14 @@ output "deployment_instructions" {
        export AWS_REGION="${var.aws_region}"
        python -m backend.app.tools.seed_db --production
 
-    4. Deploy frontend to Vercel:
-       - Set NEXT_PUBLIC_API_URL=http://${aws_lb.main.dns_name}
-       - Update backend CORS_ORIGINS parameter with Vercel URL
+    4. Deploy frontend to S3:
+       cd frontend && npm run build && npm run export
+       aws s3 sync out/ s3://${aws_s3_bucket.frontend.bucket}/ --delete
+       aws cloudfront create-invalidation --distribution-id ${aws_cloudfront_distribution.frontend.id} --paths "/*"
 
-    5. Access your API:
+    5. Access your application:
+       Frontend: https://${aws_cloudfront_distribution.frontend.domain_name}
+       API:
        http://${aws_lb.main.dns_name}/health
        http://${aws_lb.main.dns_name}/products
 
