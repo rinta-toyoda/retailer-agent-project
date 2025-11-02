@@ -23,13 +23,20 @@ A complete e-commerce platform demonstrating AI agent capabilities with natural 
    # - Start all services (database, backend, frontend, localstack)
    # - Seed the database with sample products
    task install
+   ```
 
 2. **Add your OpenAI API key**
    ```bash
    # Edit .env file and add your OpenAI API key
    # OPENAI_API_KEY=sk-proj-YOUR_KEY_HERE
    ```
-3. **Access the application**
+   
+3. **Refresh environment variables**
+   ```bash
+   task up
+   ```
+
+4. **Access the application**
    - **Frontend**: http://localhost:3000
    - **Backend API**: http://localhost:8100
    - **API Documentation**: http://localhost:8100/docs
@@ -228,3 +235,326 @@ task test:backend      # Run backend tests only
 task test:frontend     # Run frontend tests only
 task test:coverage     # Run tests with coverage reports
 ```
+
+## Deploying (Optional)
+AWS Deployment Guide
+
+Complete guide for deploying the Retailer AI Agent to AWS production infrastructure.
+
+### Infrastructure Overview
+
+The Terraform configuration deploys a production-ready AWS architecture:
+
+```
+Internet
+   │
+   ├─→ Application Load Balancer (Public Subnets)
+   │        │
+   │        └─→ ECS Fargate Tasks (Private Subnets)
+   │                 │
+   │                 ├─→ RDS PostgreSQL (Private Subnets)
+   │                 ├─→ S3 Bucket (Product Images)
+   │                 └─→ Parameter Store (Secrets)
+   │
+   └─→ Vercel Frontend
+```
+
+### Components
+
+- **ECS Fargate**: Serverless containers with Spot instances (70% cost savings)
+- **RDS PostgreSQL**: Free tier eligible t3.micro instance
+- **Application Load Balancer**: HTTP/HTTPS traffic routing
+- **S3**: Public bucket for product images
+- **VPC**: Custom VPC with public/private subnets across 2 AZs
+- **Parameter Store**: Secure storage for API keys and secrets
+
+### Cost Estimate
+
+| Service | Specification | Monthly Cost |
+|---------|--------------|--------------|
+| Fargate Spot | 0.25 vCPU, 0.5GB | ~$2.70 |
+| RDS t3.micro | PostgreSQL 15 | FREE (Year 1), ~$15 (Year 2+) |
+| ALB | Application Load Balancer | ~$16.20 |
+| NAT Gateway | Single NAT | ~$32.85 |
+| S3 | 1GB storage + requests | ~$0.12 |
+| Data Transfer | Moderate usage | ~$5 |
+| **TOTAL** | | **~$57/month** (Year 1) |
+
+## Prerequisites
+
+Before deploying, ensure you have:
+
+1. **AWS Account** with appropriate IAM permissions
+2. **AWS CLI** installed and configured
+3. **Terraform** >= 1.0 installed
+4. **Docker** installed locally
+5. **OpenAI API Key** from [platform.openai.com](https://platform.openai.com/api-keys)
+
+### Install Required Tools
+
+**macOS:**
+```bash
+# Install Terraform
+brew install terraform
+
+# Install AWS CLI
+brew install awscli
+
+# Configure AWS credentials
+aws configure
+# Enter: Access Key ID, Secret Access Key, Region (us-east-1), Output (json)
+```
+
+**Linux:**
+```bash
+# Install Terraform
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt-get update && sudo apt-get install terraform
+
+# Install AWS CLI
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+
+# Configure AWS credentials
+aws configure
+```
+
+## Deployment Process
+
+### Step 1: Configure Infrastructure Variables
+
+```bash
+cd terraform
+
+# Copy the template
+cp terraform.tfvars.example terraform.tfvars
+
+# Generate secure secrets
+echo "JWT Secret (copy this): $(openssl rand -base64 32)"
+echo "DB Password (copy this): $(openssl rand -base64 24)"
+
+# Edit the configuration file
+nano terraform.tfvars
+```
+
+**Required Configuration:**
+
+```hcl
+# terraform.tfvars
+
+# Database Configuration
+db_password = "YOUR_GENERATED_DB_PASSWORD"  # Use the generated password above
+
+# Security
+jwt_secret_key = "YOUR_GENERATED_JWT_SECRET"  # Use the generated secret above
+
+# OpenAI Configuration
+openai_api_key = "sk-proj-YOUR_OPENAI_KEY"  # From platform.openai.com
+
+# CORS Configuration (update after deploying frontend)
+cors_origins = "http://localhost:3000"  # Will update with Vercel URL later
+
+# Optional: Override defaults
+# project_name = "retailer-syd"
+# environment = "prod"
+# aws_region = "ap-southeast-2"
+```
+
+### Step 2: Initialize Terraform
+
+```bash
+cd terraform
+
+# Initialize Terraform backend and download providers
+./deploy.sh init
+```
+
+**Expected Output:**
+```
+[OK] Initializing Terraform...
+[OK] Terraform initialized
+```
+
+### Step 3: Review Infrastructure Plan
+
+```bash
+# Preview what will be created
+./deploy.sh plan
+```
+
+Review the output. Should show approximately **45 resources** to be created:
+- 1 VPC with 4 subnets (2 public, 2 private)
+- 1 NAT Gateway and Internet Gateway
+- 1 RDS PostgreSQL instance
+- 1 S3 bucket with lifecycle policies
+- 1 ECS cluster with Fargate service
+- 1 Application Load Balancer with target groups
+- IAM roles and security groups
+- Parameter Store entries for secrets
+
+### Step 4: Deploy Infrastructure
+
+```bash
+# Apply the infrastructure changes
+./deploy.sh apply
+```
+
+When prompted `Do you want to perform these actions?`, type `yes` and press Enter.
+
+**Deployment Time:** 15-20 minutes (RDS provisioning is the slowest)
+
+**Expected Output:**
+```
+Apply complete! Resources: 45 added, 0 changed, 0 destroyed.
+
+Outputs:
+api_url = "http://retailer-agent-prod-alb-1234567890.us-east-1.elb.amazonaws.com"
+database_endpoint = "postgresql://retailer:password@retailer-agent-prod-db.xxx.us-east-1.rds.amazonaws.com:5432/retailer_db"
+ecr_repository = "123456789012.dkr.ecr.us-east-1.amazonaws.com/retailer-agent-prod-backend"
+ecs_cluster = "retailer-agent-prod-cluster"
+ecs_service = "retailer-agent-prod-service"
+s3_bucket = "retailer-agent-prod-product-images"
+vpc_id = "vpc-xxxxxxxxx"
+```
+
+**Save these outputs** - you'll need them for the next steps.
+
+### Step 5: Build and Push Docker Image
+
+```bash
+cd terraform
+
+# Use the deploy script (handles everything automatically)
+./deploy.sh push-image
+```
+
+Or manually:
+
+```bash
+cd /path/to/project/root
+
+# Login to AWS ECR
+aws ecr get-login-password --region ap-southeast-2 | \
+  docker login --username AWS --password-stdin $(terraform -chdir=terraform output -raw ecr_repository | cut -d'/' -f1)
+
+# Build backend Docker image (with linux/amd64 platform)
+docker build --platform linux/amd64 -t $(terraform -chdir=terraform output -raw ecr_repository):latest ./backend
+
+# Push image to ECR
+docker push $(terraform -chdir=terraform output -raw ecr_repository):latest
+```
+
+**Expected Output:**
+```
+Login Succeeded
+[+] Building 45.3s
+Successfully tagged 123456789012.dkr.ecr.us-east-1.amazonaws.com/retailer-agent-prod-backend:latest
+Pushing image...
+latest: digest: sha256:abc123... size: 2841
+```
+
+### Step 6: Deploy Backend to ECS
+
+```bash
+# Force ECS to pull and deploy the new image
+aws ecs update-service \
+  --cluster $(terraform -chdir=terraform output -raw ecs_cluster) \
+  --service $(terraform -chdir=terraform output -raw ecs_service) \
+  --force-new-deployment \
+  --region us-east-1
+
+# Monitor deployment status
+aws ecs describe-services \
+  --cluster $(terraform -chdir=terraform output -raw ecs_cluster) \
+  --services $(terraform -chdir=terraform output -raw ecs_service) \
+  --region us-east-1 \
+  --query 'services[0].deployments[0].{status:status,running:runningCount,desired:desiredCount}'
+```
+
+**Wait 3-5 minutes** for the service to stabilize. Check status with:
+```bash
+./deploy.sh status
+```
+
+### Step 7: Seed Production Database
+
+```bash
+cd terraform
+
+# Use the deploy script (runs seed in ECS task with network access to RDS)
+./deploy.sh seed-db
+```
+
+The script will:
+- Start a one-time ECS Fargate task
+- Run the seed script inside AWS (has network access to private RDS)
+- Wait for completion and report status
+
+**Expected Output:**
+```
+[OK] Uploading product images to S3...
+[OK] Creating database tables...
+[OK] Seeding products (30 items)...
+[OK] Creating admin user...
+[OK] Database seeded successfully!
+```
+
+This will:
+- Upload all product images from `assets/` to S3
+- Create database schema
+- Insert 30 sample products
+- Create admin user (username: `admin`, password: `admin123`)
+
+### Step 8: Verify Backend Deployment
+
+```bash
+# Get the API URL
+export API_URL=$(terraform -chdir=terraform output -raw api_url)
+echo "API URL: $API_URL"
+
+# Test health endpoint
+curl $API_URL/health
+
+# Expected: {"status":"healthy"}
+
+# Test login
+curl -X POST $API_URL/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+
+# Expected: {"access_token":"eyJ...","token_type":"bearer"}
+
+# Save token for testing
+export TOKEN=$(curl -s -X POST $API_URL/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' | \
+  python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+
+# Test products endpoint
+curl $API_URL/products -H "Authorization: Bearer $TOKEN"
+
+# Expected: [{"id":1,"name":"CloudRunner Pro",...}, ...]
+
+# Test recommendations
+curl "$API_URL/recommendations?customer_id=1&limit=4"
+
+# Expected: {"customer_id":1,"recommendations":[...]}
+```
+
+### Step 9: Deploy Frontend to S3 + CloudFront
+
+```bash
+cd terraform
+
+# Deploy frontend (builds Next.js, uploads to S3, invalidates CloudFront cache)
+./deploy.sh deploy-frontend
+```
+
+The script will:
+- Build Next.js static site with API URL
+- Export to static files
+- Upload to S3 frontend bucket
+- Invalidate CloudFront cache
+- Return the CloudFront URL
